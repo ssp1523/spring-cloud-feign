@@ -198,7 +198,7 @@ public class UserController {
 
 #### http请求访问接口
 
-对此处比较熟的同学可以跳过，看下一节 `使用Feign调用http接口-主题`
+对此处比较熟的同学可以跳过，看下一节 `使用Feign调用http接口`
 
 user保存接口POST  http://localhost:8080/user ，可以多保存几次，下面的列表就可以看的条数据了
 
@@ -248,7 +248,7 @@ user根据id查询接口GET  http://localhost:8080/user/1
 
 
 
-#### 使用Feign调用http接口-主题
+#### 使用Feign调用http接口
 
 创建Feign接口类 
 
@@ -323,3 +323,6 @@ User{id='1', name='张三'}
 到此Feign初体验结束。
 
 我们会发现在`UserFeignTest`测试类的 `UserFeign userFeign `成员变量是spring 自动注入的，无论保存还是查询只要是调用`UserFeign`对应方法就可以了，对应开发者就像调用本地接口一样，大大的简化了http客户端请求的方式，当然 `UserFeignTest`类可以改成 `UserService`类。
+
+样例地址 [spring-cloud-feign](https://github.com/ssp1523/spring-cloud-feign)
+
