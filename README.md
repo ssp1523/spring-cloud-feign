@@ -324,5 +324,4 @@ User{id='1', name='张三'}
 
 我们会发现在`UserFeignTest`测试类的 `UserFeign userFeign `成员变量是spring 自动注入的，无论保存还是查询只要是调用`UserFeign`对应方法就可以了，对应开发者就像调用本地接口一样，大大的简化了http客户端请求的方式，当然 `UserFeignTest`类可以改成 `UserService`类。
 
-样例地址 [spring-cloud-feign](https://github.com/ssp1523/spring-cloud-feign)
-
+样例地址 [spring-cloud-feign](https://github.com/ssp1523/spring-cloud-feign/tree/Spring-Cloud-Feign%E4%B9%8B%E5%88%9D%E4%BD%93%E9%AA%8C)  分支 `Spring-Cloud-Feign之初体验`
