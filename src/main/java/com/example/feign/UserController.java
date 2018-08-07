@@ -13,8 +13,14 @@ import java.util.concurrent.atomic.AtomicLong;
 @RestController
 public class UserController {
 
+    /**
+     * 简单的Map存储User
+     */
     private Map<String, User> userMap = new HashMap<>();
 
+    /**
+     * id自增主键
+     */
     private AtomicLong pk = new AtomicLong();
 
     @PostMapping
@@ -31,8 +37,7 @@ public class UserController {
     }
 
     @GetMapping
-    public List<User> findAll(@RequestHeader("token") String token) {
-        System.out.println("请求头token信息：" + token);
+    public List<User> findAll() {
         return new ArrayList<>(userMap.values());
     }
 }
