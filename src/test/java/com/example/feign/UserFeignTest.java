@@ -20,9 +20,10 @@ public class UserFeignTest {
     @Test
     public void save() {
         User user = new User();
-        user.setName("ssp");
+        user.setName("张三");
         userFeign.save(user);
-        User user1 = userFeign.getUserByID("1");
+        System.out.println("根据id查询");
+        User user1 = userFeign.getUserByID("5");
         System.out.println(user1);
     }
 
