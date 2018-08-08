@@ -2,7 +2,7 @@
 
 # Spring Cloud Feign 之日志输出
 
-[第一章 Spring Cloud Feign 之初体验](https://gitee.com/ssp12345/spring-cloud-feign/tree/Spring-Cloud-Feign%E4%B9%8B%E5%88%9D%E4%BD%93%E9%AA%8C/)已经对Feign有了初步了解，这章介绍下Feign的日志输出
+[第一章 Spring Cloud Feign 之初体验](https://github.com/ssp1523/spring-cloud-feign/tree/Spring-Cloud-Feign%E4%B9%8B%E5%88%9D%E4%BD%93%E9%AA%8C)已经对Feign有了初步了解，这章介绍下Feign的日志输出
 
 在平时开发过程中少不了查看日志解决问题，一个好的框架日志输出是必不可少的，Feign也一样
 
