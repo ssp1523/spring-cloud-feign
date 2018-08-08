@@ -1,6 +1,8 @@
 package com.example.feign;
 
 import feign.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.cloud.netflix.feign.FeignLoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -16,4 +18,22 @@ public class FeignConfig {
     Logger.Level feignLevel() {
         return Logger.Level.FULL;
     }
+
+
+    @Bean
+    FeignLoggerFactory infoFeignLoggerFactory() {
+        return new InfoFeignLoggerFactory();
+    }
+
+    /**
+     * feign info 日志工厂
+     */
+    public static class InfoFeignLoggerFactory implements FeignLoggerFactory {
+
+        @Override
+        public Logger create(Class<?> type) {
+            return new InfoFeignLogger(LoggerFactory.getLogger(type));
+        }
+    }
+
 }
