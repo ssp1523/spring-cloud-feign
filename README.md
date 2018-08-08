@@ -2,7 +2,7 @@
 
 # Spring Cloud Feign 之日志自定义扩展
 
-[第二章 Spring Cloud Feign 之日志输出](../Spring-Cloud-Feign之日志输出)已经对Feign自带的日志输出说明，与外部HTTP接口交互时需要记录一些请求和响应日志来排查问题，虽然Feign支持但它的日志是Debug级别，并不符合我们在生产中使用INFO级别日志要求，所以这章介绍下自定义日志输出。
+[第二章 Spring Cloud Feign 之日志输出](https://github.com/ssp1523/spring-cloud-feign/tree/Spring-Cloud-Feign%E4%B9%8B%E6%97%A5%E5%BF%97%E8%BE%93%E5%87%BA)已经对Feign自带的日志输出说明，与外部HTTP接口交互时需要记录一些请求和响应日志来排查问题，虽然Feign支持但它的日志是Debug级别，并不符合我们在生产中使用INFO级别日志要求，所以这章介绍下自定义日志输出。
 
 ### 分析Spring Cloud Feign 默认日志
 
