@@ -76,7 +76,7 @@ logging.level.com.example.feign.UserFeign=debug
 
 运行 `UserFeignTest.getUserByID`方法 可以看到以下查询user详情输出的请求和响应日志。
 
-```
+```log
 2018-08-07 16:48:03.045 DEBUG 75661 --- [           main] com.example.feign.UserFeign              : [UserFeign#getUserByID] ---> GET http://localhost:8080/user/5 HTTP/1.1
 2018-08-07 16:48:03.046 DEBUG 75661 --- [           main] com.example.feign.UserFeign              : [UserFeign#getUserByID] ---> END HTTP (0-byte body)
 2018-08-07 16:48:03.051 DEBUG 75661 --- [           main] com.example.feign.UserFeign              : [UserFeign#getUserByID] <--- HTTP/1.1 200 (4ms)
