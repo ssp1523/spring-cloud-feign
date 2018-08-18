@@ -263,7 +263,7 @@ public class FeignApplication {
 
 #### 第三种:`@FeignClient`
 
-作用范围是Feign接口，`@FeignClient.configuration` 注解
+作用范围是Feign接口,优先级要高于上面两种，`@FeignClient.configuration` 注解
 
 
 
@@ -304,17 +304,36 @@ public interface UserFeign {
 
 Spring Cloud Feign HTTP请求异常`Fallback`容错机制，它是基于Hystrix实现的，所以要通过配置参数`feign.hystrix.enabled=true`开启该功能，及其两种实现方式。
 
-`Fallback`工厂方式引出了`ErrorDecoder`错误解码自定义处理，有三种方式，可根据实际请求选择。
+`Fallback`工厂方式引出了`ErrorDecoder`错误解码自定义处理，有三种方式，可根据实际请求选择，举一反三其他自定义配置也可以通过这种方式实现如：Decoder、Encoder、Logger(第二、三章有介绍)。
+
+> 如果开启的`Hystrix`就不要用feign的超时配置了,单位是毫秒
+>
+> ```properties
+> feign.client.config.defalut.connect-timeout=10000
+> ```
+>
+> `defalut`是默认配置名称，可以使用`feign.client.default-config`替换自定义名称
+>
+> ```properties
+> feign.client.default-config=my-config
+> feign.client.config.my-config.connect-timeout=10000
+> ```
+>
+> 请使用如下属性配置超时时间，单位毫秒
+>
+> ```properties
+> hystrix.command.default.execution.isolation.thread.timeoutInMilliseconds=20000
+> ```
 
 
 
-样例地址 [spring-cloud-feign](https://github.com/ssp1523/spring-cloud-feign/tree/Spring-Cloud-Feign%E4%B9%8B%E6%97%A5%E5%BF%97%E8%87%AA%E5%AE%9A%E4%B9%89%E6%89%A9%E5%B1%95)  分支 `Spring-Cloud-Feign之日志自定义扩展`，
+样例地址 [spring-cloud-feign](https://github.com/ssp1523/spring-cloud-feign/tree/Spring-Cloud-Feign-%E4%B9%8Bfallback)  分支 `Spring-Cloud-Feign-之fallback`
 
 ## 写在最后
 
 Spring Cloud Feign 系列持续更新中。。。。。欢迎关注
 
-如发现哪些知识点有误或是没有看懂，欢迎在评论区提出，博主及时改正。
+如发现哪些知识点有误或是没有看懂，请在评论区提出，博主及时改正。
 
 欢迎转载请注明出处。
 
