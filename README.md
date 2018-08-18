@@ -1,211 +1,312 @@
 
 
-# Spring Cloud Feign 之日志自定义扩展
+# Spring Cloud Feign 之Fallback
 
-[第二章 Spring Cloud Feign 之日志输出](https://github.com/ssp1523/spring-cloud-feign/tree/Spring-Cloud-Feign%E4%B9%8B%E6%97%A5%E5%BF%97%E8%BE%93%E5%87%BA)已经对Feign自带的日志输出说明，与外部HTTP接口交互时需要记录一些请求和响应日志来排查问题，虽然Feign支持但它的日志是Debug级别，并不符合我们在生产中使用INFO级别日志要求，所以这章介绍下自定义日志输出。
+在网络请求时，可能会出现异常请求，如果还想再异常情况下使系统可用，那么就需要容错处理，比如:网络请求超时时给用户提示“稍后重试”或使用本地快照数据等等。
 
-### 分析Spring Cloud Feign 默认日志
+Spring Cloud Feign就是通过`Fallback`实现的，有两种方式：
 
-首先看下spring cloud feign 对日志输出的处理
+1、`@FeignClient.fallback = UserFeignFallback.class`指定一个实现Feign接口的实现类。
+
+2、`@FeignClient.fallbackFactory = UserFeignFactory.class`指定一个实现`FallbackFactory<T>`工厂接口类
+
+因为`Fallback`是通过`Hystrix`实现的， 所以需要开启`Hystrix`，spring boot `application.properties`文件配置`feign.hystrix.enabled=true`，这样就开启了`Fallback`
+
+### Fallback-实现Feign接口
+
+`UserFeignFallback`回调实现，由spring创建使用`@Component`(其他的注册也可以)注解
+
+> `HystrixTargeter.targetWithFallback`方法实现了`@FeignClient.fallback`处理逻辑，通过源码可以知道`UserFeignFallback`回调类是从Spring容器中获取的，所以`UserFeignFallback`由spring创建。
+
+`UserFeign`配置:
 
 ```java
-package org.springframework.cloud.netflix.feign;
+package com.example.feign;
 
-import feign.Logger;
+import org.springframework.cloud.netflix.feign.FeignClient;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 
-/**
- * Allows an application to use a custom Feign {@link Logger}.
- *
- * @author Venil Noronha
- */
-public interface FeignLoggerFactory {
+import java.util.List;
 
-   /**
-    * Factory method to provide a {@link Logger} for a given {@link Class}.
-    *
-    * @param type the {@link Class} for which a {@link Logger} instance is to be created
-    * @return a {@link Logger} instance
-    */
-   public Logger create(Class<?> type);
+@FeignClient(name = "user",url = "${user.url}",fallback = UserFeignFallback.class
+        /*fallbackFactory = UserFeignFactory.class*/)
+public interface UserFeign {
 
+    @PostMapping
+    void save(User user);
+
+    @GetMapping("/{id}")
+    User getUserByID(@PathVariable("id") String id);
+
+    @GetMapping
+    List<User> findAll();
 }
 ```
 
-通过源码我们知道spring cloud feign 已经对feign的日志输出这块做了扩展，当然feign本身也可以，这里针对spring cloud feign 进行讲解。
-
-`FeignLoggerFactory`是Feign日志工厂接口类，`DefaultFeignLoggerFactory`是它的默认实现，spring cloud feign 就是用的 `DefaultFeignLoggerFactory`
+`UserFeignFallback`类：
 
 ```java
-@Override
-public Logger create(Class<?> type) {
-   return this.logger != null ? this.logger : new Slf4jLogger(type);
+package com.example.feign;
+
+import org.springframework.stereotype.Component;
+
+import java.util.List;
+
+@Component
+public class UserFeignFallback implements UserFeign {
+
+    @Override
+    public void save(User user) {
+
+    }
+
+    @Override
+    public User getUserByID(String id) {
+        User user = new User();
+        user.setId("100");
+        user.setName("fallback 回调用户");
+        return user;
+    }
+
+    @Override
+    public List<User> findAll() {
+        return null;
+    }
 }
 ```
 
-默认日志工厂使用`Slf4jLogger`日志，然后我们看下源码
+为了模拟回调失败服务提供方，抛出500错误。
 
 ```java
-package feign.slf4j;
+ @GetMapping("/{id}")
+    public User getUserByID(@PathVariable("id") String id) {
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+//        return userMap.get(id);
+        throw new RuntimeException("服务端测试异常！");
+    }
+```
 
-import java.io.IOException;
+运行单元测试`UserFeignTest.getUserByID`控制台输出结果:
 
-import feign.Request;
+
+```java
+2018-08-18 11:47:59.800  INFO 8660 --- [ hystrix-user-1] com.example.feign.UserFeign              : [UserFeign#getUserByID] ---> GET http://localhost:8080/user/1 HTTP/1.1
+2018-08-18 11:47:59.800  INFO 8660 --- [ hystrix-user-1] com.example.feign.UserFeign              : [UserFeign#getUserByID] ---> END HTTP (0-byte body)
+2018-08-18 11:47:59.828  INFO 8660 --- [ hystrix-user-1] com.example.feign.UserFeign              : [UserFeign#getUserByID] <--- HTTP/1.1 500 (27ms)
+2018-08-18 11:47:59.828  INFO 8660 --- [ hystrix-user-1] com.example.feign.UserFeign              : [UserFeign#getUserByID] connection: close
+2018-08-18 11:47:59.828  INFO 8660 --- [ hystrix-user-1] com.example.feign.UserFeign              : [UserFeign#getUserByID] content-type: application/json;charset=UTF-8
+2018-08-18 11:47:59.828  INFO 8660 --- [ hystrix-user-1] com.example.feign.UserFeign              : [UserFeign#getUserByID] date: Sat, 18 Aug 2018 03:47:59 GMT
+2018-08-18 11:47:59.828  INFO 8660 --- [ hystrix-user-1] com.example.feign.UserFeign              : [UserFeign#getUserByID] transfer-encoding: chunked
+2018-08-18 11:47:59.828  INFO 8660 --- [ hystrix-user-1] com.example.feign.UserFeign              : [UserFeign#getUserByID] 
+2018-08-18 11:47:59.829  INFO 8660 --- [ hystrix-user-1] com.example.feign.UserFeign              : [UserFeign#getUserByID] {"timestamp":1534564079825,"status":500,"error":"Internal Server Error","exception":"java.lang.RuntimeException","message":"服务端测试异常！","path":"/user/1"}
+2018-08-18 11:47:59.829  INFO 8660 --- [ hystrix-user-1] com.example.feign.UserFeign              : [UserFeign#getUserByID] <--- END HTTP (167-byte body)
+User{id='100', name='fallback 回调用户'}
+```
+
+服务提供方抛出的500错误代码，但是客户端程序还可以正常运行输出了`UserFeignFallback.getUserByID`方法返回的结果。
+
+### FallbackFactory<T>工厂
+
+上面的实现方式简单，但是获取不到HTTP请求错误状态码和信息 ，这时就可以使用工厂模式来实现`Fallback`
+
+同样工厂实现类也要交由spring管理，同时结合`UserFeignFallback`使用，这里需要注意的`create`方法返回值类型一定要实现Feign接口，否则会报错。
+
+`UserFeignFactory`只做了打印异常处理：
+
+```java
+package com.example.feign;
+
+import feign.hystrix.FallbackFactory;
+import org.springframework.stereotype.Component;
+
+@Component
+public class UserFeignFactory implements FallbackFactory<UserFeign> {
+
+    private final UserFeignFallback userFeignFallback;
+
+    public UserFeignFactory(UserFeignFallback userFeignFallback) {
+        this.userFeignFallback = userFeignFallback;
+    }
+
+    @Override
+    public UserFeign create(Throwable cause) {
+        //打印下异常
+        cause.printStackTrace();
+        return userFeignFallback;
+    }
+}
+```
+
+UserFeign:
+
+```java
+package com.example.feign;
+
+import org.springframework.cloud.netflix.feign.FeignClient;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+
+import java.util.List;
+
+@FeignClient(name = "user", url = "${user.url}",
+/*fallback = UserFeignFallback.class*/
+        fallbackFactory = UserFeignFactory.class)
+public interface UserFeign {
+
+    @PostMapping
+    void save(User user);
+
+    @GetMapping("/{id}")
+    User getUserByID(@PathVariable("id") String id);
+
+    @GetMapping
+    List<User> findAll();
+}
+```
+
+运行单元测试`UserFeignTest.getUserByID`可以看到控制台打印的异常`feign.FeignException`更多信息省略。
+
+`ErrorDecoder`接口处理请求错误信息，默认实现`ErrorDecoder.Default`抛出`FeignException`异常
+
+> `FeignException.status` 方法返回HTTP状态码，`FallbackFactory.create`默认情况下可以强制转换成`FeignException`异常这样就可以获取到HTTP状态码了。
+
+### 自定义ErrorDecoder
+
+#### 第一种:`application.properties`
+
+全局配置,通过`application.properties`配置文件
+
+```properties
+feign.client.default-config=my-config
+feign.client.config.my-config.error-decoder=com.example.feign.MyErrorDecoder
+```
+
+错误解码实现类MyErrorDecoder
+
+```java
+package com.example.feign;
+
+import feign.Response;
+import feign.codec.ErrorDecoder;
+
+public class MyErrorDecoder implements ErrorDecoder {
+
+    @Override
+    public Exception decode(String methodKey, Response response) {
+        return new MyFeignException(methodKey,response);
+    }
+}
+```
+
+自定义异常MyFeignException
+
+```java
+package com.example.feign;
+
 import feign.Response;
 
-public class Slf4jLogger extends feign.Logger {
+public class MyFeignException extends RuntimeException {
+    private final String methodKey;
+    private Response response;
 
-  private final Logger logger;
 
-  public Slf4jLogger() {
-    this(feign.Logger.class);
-  }
-
-  public Slf4jLogger(Class<?> clazz) {
-    this(LoggerFactory.getLogger(clazz));
-  }
-
-  public Slf4jLogger(String name) {
-    this(LoggerFactory.getLogger(name));
-  }
-
-  Slf4jLogger(Logger logger) {
-    this.logger = logger;
-  }
-
-  @Override
-  protected void logRequest(String configKey, Level logLevel, Request request) {
-    if (logger.isDebugEnabled()) {
-      super.logRequest(configKey, logLevel, request);
+    MyFeignException(String methodKey, Response response) {
+        this.methodKey = methodKey;
+        this.response = response;
     }
-  }
-    
-  @Override
-  protected Response logAndRebufferResponse(String configKey, Level logLevel, 
-                                      Response response,long elapsedTime) throws IOException {
-    if (logger.isDebugEnabled()) {
-      return super.logAndRebufferResponse(configKey, logLevel, response, elapsedTime);
+
+
+    public Response getResponse() {
+        return response;
     }
-    return response;
-  }
 
-  @Override
-  protected void log(String configKey, String format, Object... args) {
-    // Not using SLF4J's support for parameterized messages (even though it would be more efficient) because it would
-    // require the incoming message formats to be SLF4J-specific.
-    if (logger.isDebugEnabled()) {
-      logger.debug(String.format(methodTag(configKey) + format, args));
-    }
-  }
-}
-```
-
-看到这里就知道为什么Spring Cloud Feign 日志输出的是Debug级别日志了。
-
-### 自定Spring Cloud Feign日志输出
-
-参考`DefaultFeignLoggerFactory`类实现自己的日志工厂实现类。
-
-场景说明：将原有的debug级别，修改成info级别
-
-第一步:实现`FeignLoggerFactory`工厂接口,`InfoFeignLoggerFactory` 是`FeignConfig`静态内部类
-
-```java
-/**
- * feign info 日志工厂
- */
-public static class InfoFeignLoggerFactory implements FeignLoggerFactory {
-
-    @Override
-    public Logger create(Class<?> type) {
-        return new InfoFeignLogger(LoggerFactory.getLogger(type));
+    public String getMethodKey() {
+        return methodKey;
     }
 }
 ```
 
-第二部: 继承`feign.Logger`实现info级别日志输出，`InfoFeignLogger`使用`slf4j`日志工具，此处只是简单的实现了info级别日志输出，如果想效率更高请参考`Slf4jLogger`添加一些日记级别判断
+#### 第二种:`@EnableFeignClients`
+
+全局配置,`@EnableFeignClients.defaultConfiguration`注解
 
 ```java
+package com.example;
+
+import com.example.feign.FeignClientsConfig;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.cloud.netflix.feign.EnableFeignClients;
+
 /**
- * info feign 日志
+ * 启动类
+ *
  * @author: sunshaoping
- * @date: Create by in 下午3:29 2018/8/8
+ * @date: Create by in 上午10:47 2018/8/7
  */
-public class InfoFeignLogger extends feign.Logger {
+@EnableFeignClients(
+        defaultConfiguration = FeignClientsConfig.class
+)
+@SpringBootApplication
+public class FeignApplication {
 
-    private final Logger logger;
-
-    public InfoFeignLogger(Logger logger) {
-        this.logger = logger;
+    public static void main(String[] args) {
+        SpringApplication.run(FeignApplication.class, args);
     }
 
-    @Override
-    protected void log(String configKey, String format, Object... args) {
-        if (logger.isInfoEnabled()) {
-            logger.info(String.format(methodTag(configKey) + format, args));
-        }
-    }
-}
-```
-
-第三部:日志工厂`InfoFeignLoggerFactory`注册到spring 容器中，使用spring java Config
-
-```java
-/**
- * feign 配置
- * @author: sunshaoping
- * @date: Create by in 下午4:07 2018/8/7
- */
-@Configuration
-public class FeignConfig {
-
-    @Bean
-    Logger.Level feignLevel() {
-        return Logger.Level.FULL;
-    }
-
-    @Bean
-    FeignLoggerFactory infoFeignLoggerFactory() {
-        return new InfoFeignLoggerFactory();
-    }
 
 }
 ```
 
-这样就实现了自定义的日志打印了，简单吧，让我们看看效果，是不是变成INFO日志级别了。
+#### 第三种:`@FeignClient`
+
+作用范围是Feign接口，`@FeignClient.configuration` 注解
+
+
 
 ```java
-2018-08-08 15:45:39.261  INFO 3514 --- [           main] com.example.feign.UserFeign              : [UserFeign#save] ---> POST http://localhost:8080/user HTTP/1.1
-2018-08-08 15:45:39.262  INFO 3514 --- [           main] com.example.feign.UserFeign              : [UserFeign#save] Content-Type: application/json;charset=UTF-8
-2018-08-08 15:45:39.262  INFO 3514 --- [           main] com.example.feign.UserFeign              : [UserFeign#save] Content-Length: 27
-2018-08-08 15:45:39.262  INFO 3514 --- [           main] com.example.feign.UserFeign              : [UserFeign#save] 
-2018-08-08 15:45:39.262  INFO 3514 --- [           main] com.example.feign.UserFeign              : [UserFeign#save] {"id":null,"name":"张三"}
-2018-08-08 15:45:39.263  INFO 3514 --- [           main] com.example.feign.UserFeign              : [UserFeign#save] ---> END HTTP (27-byte body)
-2018-08-08 15:45:39.691  INFO 3514 --- [           main] com.example.feign.UserFeign              : [UserFeign#save] <--- HTTP/1.1 200 (427ms)
-2018-08-08 15:45:39.691  INFO 3514 --- [           main] com.example.feign.UserFeign              : [UserFeign#save] content-length: 0
-2018-08-08 15:45:39.691  INFO 3514 --- [           main] com.example.feign.UserFeign              : [UserFeign#save] date: Wed, 08 Aug 2018 07:45:39 GMT
-2018-08-08 15:45:39.691  INFO 3514 --- [           main] com.example.feign.UserFeign              : [UserFeign#save] 
-2018-08-08 15:45:39.692  INFO 3514 --- [           main] com.example.feign.UserFeign              : [UserFeign#save] <--- END HTTP (0-byte body)
+package com.example.feign;
 
-```
+import org.springframework.cloud.netflix.feign.FeignClient;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 
-细心的同学可能会发现，为什么我们的`FeignLoggerFactory`就起作用了，其实这是spring 强大的条件装配功能
+import java.util.List;
 
-当`FeignLoggerFactory`不存在时才加载默认`DefaultFeignLoggerFactory`,如果对spring 条件装配感兴趣的同学可以看下[官网](https://docs.spring.io/spring-boot/docs/2.0.4.RELEASE/reference/htmlsingle/#boot-features-condition-annotations)，spring boot对spring条件装配扩展了很多注解。
+@FeignClient(name = "user", url = "${user.url}",
+/*fallback = UserFeignFallback.class*/
+        decode404 = true,
+        fallbackFactory = UserFeignFactory.class,
+        configuration = FeignClientsConfig.class
+)
+public interface UserFeign {
 
-```java
-@Bean
-@ConditionalOnMissingBean(FeignLoggerFactory.class)
-public FeignLoggerFactory feignLoggerFactory() {
-   return new DefaultFeignLoggerFactory(logger);
+    @PostMapping
+    void save(User user);
+
+    @GetMapping("/{id}")
+    User getUserByID(@PathVariable("id") String id);
+
+    @GetMapping
+    List<User> findAll();
 }
 ```
+
+
 
 ### 总结
 
-此章节介绍了自定义Feign 日志输出，通过实现`FeignLoggerFactory`工厂类接口和继承`feign.Logger`类，还使用了 `slf4j`日志工具，在项目开发过程中建议使用`slf4j`这样项目在更换日志框架也不用修改源代码了，扩展性更强。
+本章节讲了如下内容
+
+Spring Cloud Feign HTTP请求异常`Fallback`容错机制，它是基于Hystrix实现的，所以要通过配置参数`feign.hystrix.enabled=true`开启该功能，及其两种实现方式。
+
+`Fallback`工厂方式引出了`ErrorDecoder`错误解码自定义处理，有三种方式，可根据实际请求选择。
+
+
 
 样例地址 [spring-cloud-feign](https://github.com/ssp1523/spring-cloud-feign/tree/Spring-Cloud-Feign%E4%B9%8B%E6%97%A5%E5%BF%97%E8%87%AA%E5%AE%9A%E4%B9%89%E6%89%A9%E5%B1%95)  分支 `Spring-Cloud-Feign之日志自定义扩展`，
 

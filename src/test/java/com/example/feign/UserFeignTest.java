@@ -27,7 +27,8 @@ public class UserFeignTest {
 
     @Test
     public void getUserByID() {
-        userFeign.getUserByID("1");
+        User user = userFeign.getUserByID("1");
+        System.out.println(user);
     }
 
     @Test

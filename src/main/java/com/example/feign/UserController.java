@@ -33,7 +33,9 @@ public class UserController {
 
     @GetMapping("/{id}")
     public User getUserByID(@PathVariable("id") String id) {
-        return userMap.get(id);
+
+//        return userMap.get(id);
+        throw new RuntimeException("服务端测试异常！");
     }
 
     @GetMapping

@@ -7,7 +7,12 @@ import org.springframework.web.bind.annotation.PostMapping;
 
 import java.util.List;
 
-@FeignClient(name = "user",url = "${user.url}")
+@FeignClient(name = "user", url = "${user.url}",
+/*fallback = UserFeignFallback.class*/
+        decode404 = true,
+        fallbackFactory = UserFeignFactory.class,
+        configuration = FeignClientsConfig.class
+)
 public interface UserFeign {
 
     @PostMapping
