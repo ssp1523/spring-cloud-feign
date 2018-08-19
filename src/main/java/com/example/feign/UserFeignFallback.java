@@ -1,6 +1,10 @@
 package com.example.feign;
 
+import com.netflix.hystrix.HystrixCommand;
 import org.springframework.stereotype.Component;
+import rx.Completable;
+import rx.Observable;
+import rx.Single;
 
 import java.util.List;
 
@@ -8,20 +12,30 @@ import java.util.List;
 public class UserFeignFallback implements UserFeign {
 
     @Override
-    public void save(User user) {
+    public Completable save(User user) {
 
+        return Completable.complete();
     }
 
     @Override
-    public User getUserByID(String id) {
-        User user = new User();
-        user.setId("100");
-        user.setName("fallback 回调用户");
-        return user;
+    public Single<User> getUserByIDSingle(String id) {
+        return getUserByID(id).toSingle();
     }
 
     @Override
-    public List<User> findAll() {
+    public Observable<User> getUserByID(String id) {
+
+        return Observable.create(subscriber -> {
+            User user = new User();
+            user.setId("100");
+            user.setName("fallback 回调用户");
+            subscriber.onNext(user);
+            subscriber.onCompleted();
+        });
+    }
+
+    @Override
+    public HystrixCommand<List<User>> findAll() {
         return null;
     }
 }

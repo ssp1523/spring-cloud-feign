@@ -1,300 +1,264 @@
 
 
-# Spring Cloud Feign 之Fallback
+# Spring Cloud Feign 之Hystrix
 
-在网络请求时，可能会出现异常请求，如果还想再异常情况下使系统可用，那么就需要容错处理，比如:网络请求超时时给用户提示“稍后重试”或使用本地快照数据等等。
+环境信息: java 1.8、Spring boot 1.5.10.RELEASE、spring cloud-Edgware.SR3、maven 3.3+
 
-Spring Cloud Feign就是通过`Fallback`实现的，有两种方式：
+本章节只针对`Hystrix`在`Feign`中的简单实用，和一些简单的源码分析，更详细的请参考[GitHub官网](https://github.com/Netflix/Hystrix/wiki)
 
-1、`@FeignClient.fallback = UserFeignFallback.class`指定一个实现Feign接口的实现类。
+Fallback章节已经简单的介绍了Hystrix的熔断保护使用，这章将介绍`HystrixCommand`、`Observable`、`Single`、`Completable`这四种异步HTTP请求方式。
 
-2、`@FeignClient.fallbackFactory = UserFeignFactory.class`指定一个实现`FallbackFactory<T>`工厂接口类
+那么`Hystrix`为什么可以支持者四种异步HTTP请求方式，其实很简单通过一段源码就可以看出
 
-因为`Fallback`是通过`Hystrix`实现的， 所以需要开启`Hystrix`，spring boot `application.properties`文件配置`feign.hystrix.enabled=true`，这样就开启了`Fallback`
-
-### Fallback-实现Feign接口
-
-`UserFeignFallback`回调实现，由spring创建使用`@Component`(其他的注册也可以)注解
-
-> `HystrixTargeter.targetWithFallback`方法实现了`@FeignClient.fallback`处理逻辑，通过源码可以知道`UserFeignFallback`回调类是从Spring容器中获取的，所以`UserFeignFallback`由spring创建。
-
-`UserFeign`配置:
+`HystrixDelegatingContract.parseAndValidatateMetadata`方法的四个`if else`判断分别对应四个类
 
 ```java
-package com.example.feign;
+package feign.hystrix;
 
-import org.springframework.cloud.netflix.feign.FeignClient;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
+import static feign.Util.resolveLastTypeParameter;
 
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.util.List;
 
-@FeignClient(name = "user",url = "${user.url}",fallback = UserFeignFallback.class
-        /*fallbackFactory = UserFeignFactory.class*/)
-public interface UserFeign {
+import com.netflix.hystrix.HystrixCommand;
 
-    @PostMapping
-    void save(User user);
-
-    @GetMapping("/{id}")
-    User getUserByID(@PathVariable("id") String id);
-
-    @GetMapping
-    List<User> findAll();
-}
-```
-
-`UserFeignFallback`类：
-
-```java
-package com.example.feign;
-
-import org.springframework.stereotype.Component;
-
-import java.util.List;
-
-@Component
-public class UserFeignFallback implements UserFeign {
-
-    @Override
-    public void save(User user) {
-
-    }
-
-    @Override
-    public User getUserByID(String id) {
-        User user = new User();
-        user.setId("100");
-        user.setName("fallback 回调用户");
-        return user;
-    }
-
-    @Override
-    public List<User> findAll() {
-        return null;
-    }
-}
-```
-
-为了模拟回调失败服务提供方，抛出500错误。
-
-```java
- @GetMapping("/{id}")
-    public User getUserByID(@PathVariable("id") String id) {
-
-//        return userMap.get(id);
-        throw new RuntimeException("服务端测试异常！");
-    }
-```
-
-运行单元测试`UserFeignTest.getUserByID`控制台输出结果:
-
-
-```java
-2018-08-18 11:47:59.800  INFO 8660 --- [ hystrix-user-1] com.example.feign.UserFeign              : [UserFeign#getUserByID] ---> GET http://localhost:8080/user/1 HTTP/1.1
-2018-08-18 11:47:59.800  INFO 8660 --- [ hystrix-user-1] com.example.feign.UserFeign              : [UserFeign#getUserByID] ---> END HTTP (0-byte body)
-2018-08-18 11:47:59.828  INFO 8660 --- [ hystrix-user-1] com.example.feign.UserFeign              : [UserFeign#getUserByID] <--- HTTP/1.1 500 (27ms)
-2018-08-18 11:47:59.828  INFO 8660 --- [ hystrix-user-1] com.example.feign.UserFeign              : [UserFeign#getUserByID] connection: close
-2018-08-18 11:47:59.828  INFO 8660 --- [ hystrix-user-1] com.example.feign.UserFeign              : [UserFeign#getUserByID] content-type: application/json;charset=UTF-8
-2018-08-18 11:47:59.828  INFO 8660 --- [ hystrix-user-1] com.example.feign.UserFeign              : [UserFeign#getUserByID] date: Sat, 18 Aug 2018 03:47:59 GMT
-2018-08-18 11:47:59.828  INFO 8660 --- [ hystrix-user-1] com.example.feign.UserFeign              : [UserFeign#getUserByID] transfer-encoding: chunked
-2018-08-18 11:47:59.828  INFO 8660 --- [ hystrix-user-1] com.example.feign.UserFeign              : [UserFeign#getUserByID] 
-2018-08-18 11:47:59.829  INFO 8660 --- [ hystrix-user-1] com.example.feign.UserFeign              : [UserFeign#getUserByID] {"timestamp":1534564079825,"status":500,"error":"Internal Server Error","exception":"java.lang.RuntimeException","message":"服务端测试异常！","path":"/user/1"}
-2018-08-18 11:47:59.829  INFO 8660 --- [ hystrix-user-1] com.example.feign.UserFeign              : [UserFeign#getUserByID] <--- END HTTP (167-byte body)
-User{id='100', name='fallback 回调用户'}
-```
-
-服务提供方抛出的500错误代码，但是客户端程序还可以正常运行输出了`UserFeignFallback.getUserByID`方法返回的结果。
-
-### FallbackFactory<T>工厂
-
-上面的实现方式简单，但是获取不到HTTP请求错误状态码和信息 ，这时就可以使用工厂模式来实现`Fallback`
-
-同样工厂实现类也要交由spring管理，同时结合`UserFeignFallback`使用，这里需要注意的`create`方法返回值类型一定要实现Feign接口，否则会报错。
-
-`UserFeignFactory`只做了打印异常处理：
-
-```java
-package com.example.feign;
-
-import feign.hystrix.FallbackFactory;
-import org.springframework.stereotype.Component;
-
-@Component
-public class UserFeignFactory implements FallbackFactory<UserFeign> {
-
-    private final UserFeignFallback userFeignFallback;
-
-    public UserFeignFactory(UserFeignFallback userFeignFallback) {
-        this.userFeignFallback = userFeignFallback;
-    }
-
-    @Override
-    public UserFeign create(Throwable cause) {
-        //打印下异常
-        cause.printStackTrace();
-        return userFeignFallback;
-    }
-}
-```
-
-UserFeign:
-
-```java
-package com.example.feign;
-
-import org.springframework.cloud.netflix.feign.FeignClient;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-
-import java.util.List;
-
-@FeignClient(name = "user", url = "${user.url}",
-/*fallback = UserFeignFallback.class*/
-        fallbackFactory = UserFeignFactory.class)
-public interface UserFeign {
-
-    @PostMapping
-    void save(User user);
-
-    @GetMapping("/{id}")
-    User getUserByID(@PathVariable("id") String id);
-
-    @GetMapping
-    List<User> findAll();
-}
-```
-
-运行单元测试`UserFeignTest.getUserByID`可以看到控制台打印的异常`feign.FeignException`更多信息省略。
-
-`ErrorDecoder`接口处理请求错误信息，默认实现`ErrorDecoder.Default`抛出`FeignException`异常
-
-> `FeignException.status` 方法返回HTTP状态码，`FallbackFactory.create`默认情况下可以强制转换成`FeignException`异常这样就可以获取到HTTP状态码了。
-
-### 自定义ErrorDecoder
-
-#### 第一种:`application.properties`
-
-全局配置,通过`application.properties`配置文件
-
-```properties
-feign.client.default-config=my-config
-feign.client.config.my-config.error-decoder=com.example.feign.MyErrorDecoder
-```
-
-错误解码实现类MyErrorDecoder
-
-```java
-package com.example.feign;
-
-import feign.Response;
-import feign.codec.ErrorDecoder;
-
-public class MyErrorDecoder implements ErrorDecoder {
-
-    @Override
-    public Exception decode(String methodKey, Response response) {
-        return new MyFeignException(methodKey,response);
-    }
-}
-```
-
-自定义异常MyFeignException
-
-```java
-package com.example.feign;
-
-import feign.Response;
-
-public class MyFeignException extends RuntimeException {
-    private final String methodKey;
-    private Response response;
-
-
-    MyFeignException(String methodKey, Response response) {
-        this.methodKey = methodKey;
-        this.response = response;
-    }
-
-
-    public Response getResponse() {
-        return response;
-    }
-
-    public String getMethodKey() {
-        return methodKey;
-    }
-}
-```
-
-#### 第二种:`@EnableFeignClients`
-
-全局配置,`@EnableFeignClients.defaultConfiguration`注解
-
-```java
-package com.example;
-
-import com.example.feign.FeignClientsConfig;
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.cloud.netflix.feign.EnableFeignClients;
+import feign.Contract;
+import feign.MethodMetadata;
+import rx.Completable;
+import rx.Observable;
+import rx.Single;
 
 /**
- * 启动类
- *
- * @author: sunshaoping
- * @date: Create by in 上午10:47 2018/8/7
+ * This special cases methods that return {@link HystrixCommand}, {@link Observable}, or {@link Single} so that they
+ * are decoded properly.
+ * 
+ * <p>For example, {@literal HystrixCommand<Foo>} and {@literal Observable<Foo>} will decode {@code Foo}.
  */
-@EnableFeignClients(
-        defaultConfiguration = FeignClientsConfig.class
-)
-@SpringBootApplication
-public class FeignApplication {
+// Visible for use in custom Hystrix invocation handlers
+public final class HystrixDelegatingContract implements Contract {
 
-    public static void main(String[] args) {
-        SpringApplication.run(FeignApplication.class, args);
+ 
+  private final Contract delegate;
+
+  public HystrixDelegatingContract(Contract delegate) {
+    this.delegate = delegate;
+  }
+
+  @Override
+  public List<MethodMetadata> parseAndValidatateMetadata(Class<?> targetType) {
+    List<MethodMetadata> metadatas = this.delegate.parseAndValidatateMetadata(targetType);
+
+    for (MethodMetadata metadata : metadatas) {
+      Type type = metadata.returnType();
+
+      if (type instanceof ParameterizedType && ((ParameterizedType) type).getRawType().equals(HystrixCommand.class)) {
+        Type actualType = resolveLastTypeParameter(type, HystrixCommand.class);
+        metadata.returnType(actualType);
+      } else if (type instanceof ParameterizedType && ((ParameterizedType) type).getRawType().equals(Observable.class)) {
+        Type actualType = resolveLastTypeParameter(type, Observable.class);
+        metadata.returnType(actualType);
+      } else if (type instanceof ParameterizedType && ((ParameterizedType) type).getRawType().equals(Single.class)) {
+        Type actualType = resolveLastTypeParameter(type, Single.class);
+        metadata.returnType(actualType);
+      } else if (type instanceof ParameterizedType && ((ParameterizedType) type).getRawType().equals(Completable.class)) {
+        metadata.returnType(void.class);
+      }
     }
 
-
+    return metadatas;
+  }
 }
 ```
 
-#### 第三种:`@FeignClient`
+这里使用了`委派模式`，具体工作给委派对象，实际就是`SpringMvcContract`，它负责处理spring MVC 注解方式声明的Feign接口，所以需要`SpringMvcContract`。
 
-作用范围是Feign接口,优先级要高于上面两种，`@FeignClient.configuration` 注解
+### HystrixCommand
 
+Hystrix命令模式，在这里不做深度剖析有兴趣的同学可以到[GitHub官网查看](https://github.com/Netflix/Hystrix/wiki)，只针对对在Feign中是如何使用的。
 
+其实在Feign中使用很简单，`HystrixCommand`是一个泛型的抽象类，只需在返回类型指定泛型的类型即可
+
+如：`HystrixCommand<List<User>>`指定`List<User>`泛型即可
+
+`UserFeign.findAll`:
 
 ```java
-package com.example.feign;
-
-import org.springframework.cloud.netflix.feign.FeignClient;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-
-import java.util.List;
-
-@FeignClient(name = "user", url = "${user.url}",
-/*fallback = UserFeignFallback.class*/
-        decode404 = true,
-        fallbackFactory = UserFeignFactory.class,
-        configuration = FeignClientsConfig.class
-)
-public interface UserFeign {
-
-    @PostMapping
-    void save(User user);
-
-    @GetMapping("/{id}")
-    User getUserByID(@PathVariable("id") String id);
-
-    @GetMapping
-    List<User> findAll();
-}
+@GetMapping
+HystrixCommand<List<User>> findAll();
 ```
+
+是不是很简单,那么`HystrixCommand`如何使用呢，下面讲一下两个常用方法
+
+#### HystrixCommand.execute 直接获取请求结果
+
+这种方式跟`java.util.concurrent.Future.get()`方法使用方式是一样的。
+
+启动`FeignApplication`服务提供方
+
+运行单元测试`UserFeignTest.save`保存两条数据。
+
+`UserFeignTest.findAll` ，直接将结果打印
+
+```java
+	@Test
+    public void findAll() {
+        HystrixCommand<List<User>> userList = userFeign.findAll();
+        //直接获取结果，这块可以处理一些业务逻辑，最后需要userList数据调用execute方法
+        System.out.println(userList.execute());
+    }
+```
+
+```json
+[User{id='1', name='张三1'}, User{id='2', name='张三2'}]
+```
+
+#### HystrixCommand.observe或toObservable 观察者模式(订阅发布)
+
+observe() 是 `Hot observables ` ，toObservable()是  `Cold  observables` 
+
+##### Hot observables
+
+只有当有订阅者订阅的时候， Cold Observable 才开始执行发射数据流的代码 。
+
+##### Cold observables
+
+Hot observable 不管有没有订阅者订阅，他们创建后就开始发射数据流。 
+
+更多请参考[Reactive Execution](https://github.com/Netflix/Hystrix/wiki/How-To-Use#Reactive-Execution) 或 [RxJava 驯服数据流之 hot & cold Observable](https://blog.csdn.net/jdsjlzx/article/details/51839090)
+
+```java
+Observable<List<User>> listObservable = userList.observe();//可订阅多次
+Observable<List<User>> listObservable = userList.toObservable();
+```
+
+接下来讲下 `Observable`使用
+
+### Observable观察者模式(订阅发布)
+
+Feign接口的方法返回类型也可以是`Observable<T>`泛型类型可以是任意类型，我们这里以`Observable<User>`为例
+
+> 由于`Hystrix`是异步，会出现主线程结束后`Hystrix`线程同时杀死，导致结果无法打印，在订阅之后添加`TimeUnit.SECONDS.sleep(2)`使主线程睡眠2秒钟。
+
+`UserFeign.getUserByID`,其他内容省略
+
+```java
+@GetMapping("/{id}")
+Observable<User> getUserByID(@PathVariable("id") String id);
+```
+
+如果对结果集处理，只需订阅`Observable<User>`
+
+```java
+Observable<User> user = userFeign.getUserByID("1");
+user.subscribe(new Observer<User>() {
+   		   /**
+             * 数据发射完成时执行与{@link #onError(Throwable)} 它俩只会执行其中一个方法
+             */
+            @Override
+            public void onCompleted() {
+                System.out.println("user处理完成");
+            }
+
+            /**
+             * 发生错误时执行与{@link #onCompleted()} 它俩只会执行其中一个方法
+             */
+            @Override
+            public void onError(Throwable e) {
+                System.out.println("user出现异常" + e);
+            }
+
+            /**
+             * 发射数据流 user
+             */
+            @Override
+            public void onNext(User user) {
+                System.out.println("返回数据：" + user);
+            }
+});
+```
+
+运行单元测试`UserFeignTest.getUserByID`,输出结果
+
+```java
+返回数据：User{id='1', name='张三'}
+user处理完成
+```
+
+### Single
+
+`Observable`的订阅者`Observer.onNext`方法可能执行多次，最后执行`Observer.onCompleted`,其实在平时开发过程中大多数情况下`Observer.onNext`只需执行一次就可以获取到全部结果集，`Single`的订阅者`Observer.onNext`方法只会执行一次就完成了。接下来简单介绍下`Single`的使用
+
+`UserFeign.getUserByIDSingle` 很简单返回类型指定`Single`泛型是`User`即可:
+
+```java
+@GetMapping("/{id}")
+Single<User> getUserByIDSingle(@PathVariable("id") String id);
+```
+
+运行单元测试`UserFeignTest.getUserByIDSingle`
+
+```java
+Single<User> singleUser = userFeign.getUserByIDSingle("1");
+singleUser.subscribe(new Observer<User>() {
+    @Override
+    public void onCompleted() {
+        System.out.println("执行完成");
+    }
+    @Override
+    public void onError(Throwable e) {
+        System.out.println("执行错误" + e);
+    }
+    @Override
+    public void onNext(User user) {
+        System.out.println("返回数据：" + user);
+    }
+});
+```
+输出结果：
+```java
+返回数据：User{id='1', name='张三'}
+执行完成
+```
+
+`Single`订阅者`Observer.onNext`方法只会执行一次，其实`Observer.onCompleted`方法没有什么作用，再加上我们有的时候不需要处理错误`Observer.onError`，这样我们就可以简化代码了
+
+简化后的代码：
+
+```java
+Single<User> singleUser = userFeign.getUserByIDSingle("1");
+singleUser.subscribe(System.out::println);
+```
+
+### Completable
+
+`Completable`HTTP客户端只需知道请求成功或失败，不需要返回的数据时使用。
+
+这里以保存为例`UserFeign.save`
+
+单元测试`UserFeignTest.save`
+
+单元测试`UserFeignTest.save `完成处理
+
+```java
+User user = new User();
+user.setName("张三4");
+Completable completable = userFeign.save(user);
+completable.subscribe(() -> System.out.println("保存成功"));
+```
+
+单元测试`UserFeignTest.save`同步请求阻塞，异常处理，如果没有异常`throwable==null`
+
+```java
+        User user = new User();
+        user.setName("张三4");
+        Completable completable = userFeign.save(user);
+//        completable.subscribe(() -> System.out.println("保存成功"));
+        Throwable throwable = completable.get();
+        System.out.println("异常信息："+throwable);
+```
+
+
 
 
 

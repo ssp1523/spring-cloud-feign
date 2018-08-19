@@ -15,7 +15,7 @@ public class UserFeignFactory implements FallbackFactory<UserFeign> {
     @Override
     public UserFeign create(Throwable cause) {
         //打印下异常
-        cause.printStackTrace();
+//        cause.printStackTrace();
         return userFeignFallback;
     }
 }

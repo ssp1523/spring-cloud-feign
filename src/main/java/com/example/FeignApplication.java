@@ -6,9 +6,8 @@ import org.springframework.cloud.netflix.feign.EnableFeignClients;
 
 /**
  * 启动类
- *
- * @author: sunshaoping
- * @date: Create by in 上午10:47 2018/8/7
+ * <p>
+ * Create by in 上午10:47 2018/8/7
  */
 @EnableFeignClients(
 //        defaultConfiguration = FeignClientsConfig.class
