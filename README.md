@@ -2,7 +2,7 @@
 
 # Spring Cloud Feign 之Hystrix
 
-环境信息: java 1.8、Spring boot 1.5.10.RELEASE、spring cloud-Edgware.SR3、maven 3.3+
+**环境信息: java 1.8、Spring boot 1.5.10.RELEASE、spring cloud-Edgware.SR3、maven 3.3+**
 
 本章节只针对`Hystrix`在`Feign`中的简单实用，和一些简单的源码分析，更详细的请参考[GitHub官网](https://github.com/Netflix/Hystrix/wiki)
 
@@ -238,6 +238,28 @@ singleUser.subscribe(System.out::println);
 
 单元测试`UserFeignTest.save`
 
+```java
+User user = new User();
+user.setName("张三4");
+Completable completable = userFeign.save(user);
+completable.subscribe(new Subscriber<Object>() {
+    @Override
+    public void onCompleted() {
+        System.out.println("完成");
+    }
+
+    @Override
+    public void onError(Throwable e) {
+        System.out.println("异常：" + e);
+    }
+
+    @Override
+    public void onNext(Object o) {
+        System.out.println("数据" + o);
+    }
+});
+```
+
 单元测试`UserFeignTest.save `完成处理
 
 ```java
@@ -247,7 +269,7 @@ Completable completable = userFeign.save(user);
 completable.subscribe(() -> System.out.println("保存成功"));
 ```
 
-单元测试`UserFeignTest.save`同步请求阻塞，异常处理，如果没有异常`throwable==null`
+单元测试`UserFeignTest.save`同步异常处理，如果没有异常`throwable==null`
 
 ```java
         User user = new User();
@@ -258,40 +280,21 @@ completable.subscribe(() -> System.out.println("保存成功"));
         System.out.println("异常信息："+throwable);
 ```
 
-
-
-
+常用的三种方式，可以根据需求自由选择。
 
 ### 总结
 
 本章节讲了如下内容
 
-Spring Cloud Feign HTTP请求异常`Fallback`容错机制，它是基于Hystrix实现的，所以要通过配置参数`feign.hystrix.enabled=true`开启该功能，及其两种实现方式。
+`HystrixCommand`命令模式，这个功能是最全的，如果实际业务处理比较复杂的情况下可以使用该方式。
 
-`Fallback`工厂方式引出了`ErrorDecoder`错误解码自定义处理，有三种方式，可根据实际请求选择，举一反三其他自定义配置也可以通过这种方式实现如：Decoder、Encoder、Logger(第二、三章有介绍)。
+`Observable`观察者模式，`HystrixCommand`的变种，简化版的`HystrixCommand`
 
-> 如果开启的`Hystrix`就不要用feign的超时配置了,单位是毫秒
->
-> ```properties
-> feign.client.config.defalut.connect-timeout=10000
-> ```
->
-> `defalut`是默认配置名称，可以使用`feign.client.default-config`替换自定义名称
->
-> ```properties
-> feign.client.default-config=my-config
-> feign.client.config.my-config.connect-timeout=10000
-> ```
->
-> 请使用如下属性配置超时时间，单位毫秒
->
-> ```properties
-> hystrix.command.default.execution.isolation.thread.timeoutInMilliseconds=20000
-> ```
+`Single`观察者模式，处理单个返回结果时可以使用，简化版的`Observable`
 
+`Completable`观察者模式，处理一些没有返回数据，只需成功或失败通知的情况下使用。
 
-
-样例地址 [spring-cloud-feign](https://github.com/ssp1523/spring-cloud-feign/tree/Spring-Cloud-Feign-%E4%B9%8Bfallback)  分支 `Spring-Cloud-Feign-之fallback`
+样例地址 [spring-cloud-feign](https://github.com/ssp1523/spring-cloud-feign/tree/Spring-Cloud-Feign-%E4%B9%8BHystrix)  分支 `Spring-Cloud-Feign-之Hystrix`
 
 ## 写在最后
 
