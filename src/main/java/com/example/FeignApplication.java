@@ -1,5 +1,6 @@
 package com.example;
 
+import com.example.feign.FeignClientsConfig;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.netflix.feign.EnableFeignClients;
@@ -10,7 +11,7 @@ import org.springframework.cloud.netflix.feign.EnableFeignClients;
  * Create by in 上午10:47 2018/8/7
  */
 @EnableFeignClients(
-//        defaultConfiguration = FeignClientsConfig.class
+        defaultConfiguration = FeignClientsConfig.class
 )
 @SpringBootApplication
 public class FeignApplication {

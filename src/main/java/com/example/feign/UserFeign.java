@@ -14,8 +14,8 @@ import java.util.List;
 @FeignClient(name = "user", url = "${user.url}",
 /*fallback = UserFeignFallback.class*/
         decode404 = true,
-        fallbackFactory = UserFeignFactory.class,
-        configuration = FeignClientsConfig.class
+        fallbackFactory = UserFeignFactory.class
+//        configuration = FeignClientsConfig.class
 )
 public interface UserFeign {
 
@@ -30,4 +30,6 @@ public interface UserFeign {
 
     @GetMapping
     HystrixCommand<List<User>> findAll();
+
+
 }
