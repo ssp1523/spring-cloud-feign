@@ -10,7 +10,7 @@
 
 spring `java config`全局配置和局部(针对单个Feign接口)
 
-## application.properties(.yml)配置文件和java config的优先级
+## <span id="priority">application.properties(.yml)配置文件和java config的优先级</span>
 
 
 下面代码就是处理配置使之生效,`FeignClientFactoryBean#configureFeign` :
@@ -61,7 +61,7 @@ protected void configureFeign(FeignContext context, Feign.Builder builder) {
 
 3、`FeignClient#configuration` 单个`Feign`接口局部配置。
 
-4、`application.properties(.yml)`配置文件全局默认配置，配置属性`feign.client.default-config`指定默认值(defult)，如何使用，在[**application.properties(.yml)配置文件应用**](#application.properties(.yml)配置文件和java config的优先级)小节讲解
+4、`application.properties(.yml)`配置文件全局默认配置，配置属性`feign.client.default-config`指定默认值(defult)，如何使用，在[**application.properties(.yml)配置文件应用**](#priority)小节讲解
 
 5、`application.properties(.yml)`配置文件局部配置，指定`@FeignClient#name`局部配置。
 
@@ -69,7 +69,7 @@ protected void configureFeign(FeignContext context, Feign.Builder builder) {
 
  `java config` 和`application.properties(.yml)`配置，优先级有低到高进行单个配置覆盖
 
-1、`application.properties(.yml)`配置文件全局默认配置，配置属性`feign.client.default-config`指定默认值(defult)，如何使用，在[**application.properties(.yml)配置文件应用**](#application.properties(.yml)配置文件和java config的优先级)小节讲解
+1、`application.properties(.yml)`配置文件全局默认配置，配置属性`feign.client.default-config`指定默认值(defult)，如何使用，在[**application.properties(.yml)配置文件应用**](#priority)小节讲解
 
 2、`application.properties(.yml)`配置文件局部配置，指定`@FeignClient#name`局部配置。
 
