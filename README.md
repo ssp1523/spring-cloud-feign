@@ -119,16 +119,16 @@ observe() 是 `Hot observables ` ，toObservable()是  `Cold  observables`
 
 ##### Hot observables
 
-只有当有订阅者订阅的时候， Cold Observable 才开始执行发射数据流的代码 。
+Hot observable 不管有没有订阅者订阅，他们(发布者/生产者)创建后就开发发射数据流。
 
 ##### Cold observables
 
-Hot observable 不管有没有订阅者订阅，他们创建后就开始发射数据流。 
+只有当有订阅者订阅的时候， Cold Observable 才开始执行发射数据流的代码。
 
 更多请参考[Reactive Execution](https://github.com/Netflix/Hystrix/wiki/How-To-Use#Reactive-Execution) 或 [RxJava 驯服数据流之 hot & cold Observable](https://blog.csdn.net/jdsjlzx/article/details/51839090)
 
 ```java
-Observable<List<User>> listObservable = userList.observe();//可订阅多次
+Observable<List<User>> listObservable = userList.observe();
 Observable<List<User>> listObservable = userList.toObservable();
 ```
 
@@ -187,7 +187,7 @@ user处理完成
 
 ### Single
 
-`Observable`的订阅者`Observer.onNext`方法可能执行多次，最后执行`Observer.onCompleted`,其实在平时开发过程中大多数情况下`Observer.onNext`只需执行一次就可以获取到全部结果集，`Single`的订阅者`Observer.onNext`方法只会执行一次就完成了。接下来简单介绍下`Single`的使用
+`Observable`的订阅者`Observer.onNext`方法可能执行多次，最后执行`Observer.onCompleted`或`Observer.onError`(发生异常的情况下),其实在平时开发过程中大多数情况下`Observer.onNext`只需执行一次就可以获取到全部结果集，`Single`的订阅者`Observer.onNext`方法只会执行一次就完成了。接下来简单介绍下`Single`的使用
 
 `UserFeign.getUserByIDSingle` 很简单返回类型指定`Single`泛型是`User`即可:
 
