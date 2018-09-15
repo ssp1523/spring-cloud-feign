@@ -5,6 +5,8 @@ import feign.codec.Decoder;
 import feign.codec.EncodeException;
 import feign.codec.Encoder;
 import feign.codec.ErrorDecoder;
+import org.springframework.cloud.netflix.feign.AnnotatedParameterProcessor;
+import org.springframework.cloud.netflix.feign.annotation.PathVariableParameterProcessor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -15,6 +17,11 @@ import java.lang.reflect.Type;
  */
 @Configuration
 public class FeignClientsConfig {
+
+    @Bean
+    AnnotatedParameterProcessor annotatedParameterProcessor(){
+        return new PathVariableParameterProcessor();
+    }
 
     /**
      * 错误解码

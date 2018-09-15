@@ -11,6 +11,7 @@ import rx.Single;
 
 import java.util.List;
 
+//@RequestMapping
 @FeignClient(name = "user", url = "${user.url}",
 /*fallback = UserFeignFallback.class*/
         decode404 = true,

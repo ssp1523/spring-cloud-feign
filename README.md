@@ -1,3 +1,5 @@
+[TOC]
+
 
 
 # Spring Cloud Feign 之自定义配置
@@ -10,7 +12,7 @@
 
 spring `java config`全局配置和局部(针对单个Feign接口)
 
-## <span id="priority">application.properties(.yml)配置文件和java config的优先级</span>
+## application.properties(.yml)配置文件和java config的优先级
 
 
 下面代码就是处理配置使之生效,`FeignClientFactoryBean#configureFeign` :
@@ -79,7 +81,7 @@ protected void configureFeign(FeignContext context, Feign.Builder builder) {
 
 5、`FeignClient#configuration` 单个`Feign`接口局部配置。
 
-###  application.properties(.yml)配置文件应用
+##  application.properties(.yml)配置文件应用
 
 支持以下配置项:
 
@@ -124,7 +126,7 @@ feign.client.config.user.logger-level=full
 
 
 
-### java config配置应用
+## java config配置应用
 
 可配置的接口或类，通过`@EnableFeignClients#defaultConfiguration全局默认`和`@FeignClient#configuration`局部`Feign`接口配置：
 
@@ -172,7 +174,7 @@ public interface UserFeign {
 `ErrorDecoder`：错误解码器
 `Request.Options`:
 
-参考**application.properties(.yml)配置文件应用**
+参考[**application.properties(.yml)配置文件应用**](#application.properties(.yml)配置文件应用)
 
 ```java
 private final int connectTimeoutMillis;// connectTimeout配置项
@@ -229,15 +231,152 @@ public class FeignContext extends NamedContextFactory<FeignClientSpecification> 
 }
 ```
 
+## 自定义类型转换注册FeignFormatterRegistrar
+
+`Spring`提供了一个接口`ConversionService`可以将任意类型转换成指定类型，如果`String`-`>Integer`
+
+当然这些转换器需要实现一些`Spring`提供的类型转换接口，如：`Converter`(转换器)，`ConverterFactory`(转换工厂)，`Formatter`(格式化)等等。
+
+我们来添加一个简单的转换器，将`String`-`>Integer`
+
+```java
+package com.example.feign;
+
+import org.springframework.cloud.netflix.feign.FeignFormatterRegistrar;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.convert.ConversionService;
+import org.springframework.core.convert.converter.Converter;
+import org.springframework.format.FormatterRegistry;
+
+/**
+ * Feign 格式转换器
+ * @author: sunshaoping
+ * @date: Create by in 上午10:51 2018/9/15
+ * @see ConversionService
+ */
+@Configuration
+public class FeignFormatterRegistrarConfig implements FeignFormatterRegistrar {
+    @Override
+    public void registerFormatters(FormatterRegistry registry) {
+        //字符串转换成Integer
+		registry.addConverter(String.class, Integer.class, Integer::valueOf);//lambda表达式
+    }
+}
+```
+
+更多请参考[Spring 官方文档](https://docs.spring.io/spring/docs/4.3.20.BUILD-SNAPSHOT/spring-framework-reference/htmlsingle/#core-convert)
+
+## 自定义方法参数注解 AnnotatedParameterProcessor
+
+Demo中的`UserFeign#getUserByID`方法就使用了方法参数注解`@PathVariable`，这个注解就是通过实现`AnnotatedParameterProcessor`接口实现的
+
+```java
+public class PathVariableParameterProcessor implements AnnotatedParameterProcessor {
+
+   private static final Class<PathVariable> ANNOTATION = PathVariable.class;
+
+   @Override
+   public Class<? extends Annotation> getAnnotationType() {
+      return ANNOTATION;
+   }
+
+   @Override
+   public boolean processArgument(AnnotatedParameterContext context, Annotation annotation, Method method) {
+      String name = ANNOTATION.cast(annotation).value();
+      checkState(emptyToNull(name) != null,
+            "PathVariable annotation was empty on param %s.", context.getParameterIndex());
+      context.setParameterName(name);
+
+      MethodMetadata data = context.getMethodMetadata();
+      String varName = '{' + name + '}';
+      if (!data.template().url().contains(varName)
+            && !searchMapValues(data.template().queries(), varName)
+            && !searchMapValues(data.template().headers(), varName)) {
+         data.formParams().add(name);
+      }
+      return true;
+   }
+
+   private <K, V> boolean searchMapValues(Map<K, Collection<V>> map, V search) {
+      Collection<Collection<V>> values = map.values();
+      if (values == null) {
+         return false;
+      }
+      for (Collection<V> entry : values) {
+         if (entry.contains(search)) {
+            return true;
+         }
+      }
+      return false;
+   }
+}
+```
+
+通过上面源码我们也可以实现自己的方法参数注解，这里就不做演示了，说明下注意事项和注册方式。
+
+#### 注册方式
+
+很简单就行普通的java 对象注册到Spring容器一样将实现类使用Spring相关注解 `@Configuration`、`@Bean`等等
+
+```java
+@Bean
+AnnotatedParameterProcessor annotatedParameterProcessor(){
+    return new PathVariableParameterProcessor();
+}
+```
+
+#### 注意事项
+
+如果自定义实现`AnnotatedParameterProcessor`接口，Spring Cloud Feign 默认方法参数注解将失效，通过部分源码可以知：
+
+```java
+public class SpringMvcContract extends Contract.BaseContract
+		implements ResourceLoaderAware {
+    //spring mvc 注解处理类的构造器
+    public SpringMvcContract(
+          List<AnnotatedParameterProcessor> annotatedParameterProcessors,
+          ConversionService conversionService) {
+       Assert.notNull(annotatedParameterProcessors,
+             "Parameter processors can not be null.");
+       Assert.notNull(conversionService, "ConversionService can not be null.");
+
+       List<AnnotatedParameterProcessor> processors;
+       if (!annotatedParameterProcessors.isEmpty()) {
+          processors = new ArrayList<>(annotatedParameterProcessors);
+       }
+       else {
+         //当前annotatedParameterProcessors 为空时使用默认
+          processors = getDefaultAnnotatedArgumentsProcessors();
+       }
+       this.annotatedArgumentProcessors = toAnnotatedArgumentProcessorMap(processors);
+       this.conversionService = conversionService;
+       this.expander = new ConvertingExpander(conversionService);
+    }
+
+    ...
+    private List<AnnotatedParameterProcessor> getDefaultAnnotatedArgumentsProcessors() {
+
+        List<AnnotatedParameterProcessor> annotatedArgumentResolvers = new ArrayList<>();
+
+        annotatedArgumentResolvers.add(new PathVariableParameterProcessor());
+        annotatedArgumentResolvers.add(new RequestParamParameterProcessor());
+        annotatedArgumentResolvers.add(new RequestHeaderParameterProcessor());
+
+        return annotatedArgumentResolvers;
+    }
+}
+
+```
 
 
-### 总结
+
+## 总结
 
 本章节介绍了如何进行`Feign`自定义配置包括全局和局部、`application.properties`配置文件和`java config`配置，及其优先级配置。
 
 样例地址 [spring-cloud-feign](https://github.com/ssp1523/spring-cloud-feign/tree/Spring-Cloud-Feign-%E4%B9%8B%E8%87%AA%E5%AE%9A%E4%B9%89%E9%85%8D%E7%BD%AE)  分支 ` Spring-Cloud-Feign-之自定义配置`
 
-## 写在最后
+# 写在最后
 
 Spring Cloud Feign 系列持续更新中。。。。。欢迎关注
 
