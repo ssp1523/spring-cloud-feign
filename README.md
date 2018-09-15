@@ -368,11 +368,17 @@ public class SpringMvcContract extends Contract.BaseContract
 
 ```
 
+## @RequestMapping也被SpringMVC加载的问题解决
 
+`Feign`接口类有`@RequestMapping`注解`SpringMVC`会加载到`HandlerMapping`中，如果存在相同ual路径还会报错
+
+关于这个问题解决方法可以参考 [@FeignClient中的@RequestMapping也被SpringMVC加载的问题解决](http://blog.didispace.com/spring-cloud-feignclient-problem/)
 
 ## 总结
 
 本章节介绍了如何进行`Feign`自定义配置包括全局和局部、`application.properties`配置文件和`java config`配置，及其优先级配置。
+
+
 
 样例地址 [spring-cloud-feign](https://github.com/ssp1523/spring-cloud-feign/tree/Spring-Cloud-Feign-%E4%B9%8B%E8%87%AA%E5%AE%9A%E4%B9%89%E9%85%8D%E7%BD%AE)  分支 ` Spring-Cloud-Feign-之自定义配置`
 

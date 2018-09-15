@@ -5,10 +5,15 @@ import feign.codec.Decoder;
 import feign.codec.EncodeException;
 import feign.codec.Encoder;
 import feign.codec.ErrorDecoder;
+import org.springframework.boot.autoconfigure.web.WebMvcRegistrations;
+import org.springframework.boot.autoconfigure.web.WebMvcRegistrationsAdapter;
 import org.springframework.cloud.netflix.feign.AnnotatedParameterProcessor;
+import org.springframework.cloud.netflix.feign.FeignClient;
 import org.springframework.cloud.netflix.feign.annotation.PathVariableParameterProcessor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.AnnotatedElementUtils;
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 import java.lang.reflect.Type;
 
@@ -18,8 +23,27 @@ import java.lang.reflect.Type;
 @Configuration
 public class FeignClientsConfig {
 
+
     @Bean
-    AnnotatedParameterProcessor annotatedParameterProcessor(){
+    public WebMvcRegistrations feignWebRegistrations() {
+        return new WebMvcRegistrationsAdapter() {
+            @Override
+            public RequestMappingHandlerMapping getRequestMappingHandlerMapping() {
+                return new FeignRequestMappingHandlerMapping();
+            }
+        };
+    }
+
+    private static class FeignRequestMappingHandlerMapping extends RequestMappingHandlerMapping {
+        @Override
+        protected boolean isHandler(Class<?> beanType) {
+            return super.isHandler(beanType) &&
+                    !AnnotatedElementUtils.hasAnnotation(beanType, FeignClient.class);
+        }
+    }
+
+    @Bean
+    AnnotatedParameterProcessor annotatedParameterProcessor() {
         return new PathVariableParameterProcessor();
     }
 
@@ -33,7 +57,6 @@ public class FeignClientsConfig {
 
     /**
      * 自定义编码器
-     *
      */
     @Bean
     Encoder encoder() {
